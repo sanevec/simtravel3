@@ -1887,7 +1887,7 @@ namespace crow
 
     default to INFO
 */
-#define CROW_LOG_LEVEL 1
+#define CROW_LOG_LEVEL 4
 
 
 

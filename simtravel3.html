@@ -1,0 +1,81 @@
+<html>
+<body>
+<canvas id="myCanvas" width="500" height="500" style="border:1px solid #d3d3d3;">
+Your browser does not support the HTML canvas tag.
+</canvas>
+<script>
+    var c = document.getElementById("myCanvas");
+    var ctx = c.getContext("2d");
+    var data;
+	var fps = 0;
+
+    var lastFrameTimeMs = 0; // tiempo del último frame
+    var maxFPS = 250; // máximos FPS permitidos
+    var framesThisSecond = 0; // número de frames dibujados en el segundo actual
+    var lastSecond = Date.now(); // tiempo del último segundo
+	function draw() {
+		var currentTime = Date.now();
+		if (currentTime < lastFrameTimeMs + (1000 / maxFPS)) {
+			requestAnimationFrame(draw);
+			return;
+		}
+		var delta = (currentTime - lastFrameTimeMs) / 1000; // duración del último frame en segundos
+		lastFrameTimeMs = currentTime;
+	
+		voy=0;
+
+		ctx.clearRect(0, 0, c.width, c.height);
+		for(let i = 0; i < 100; i++){
+			for(let j = 0; j < 100; j++){
+				if(voy >= data.x.length){
+					voy = 0;
+				}
+				ctx.fillStyle ="#"+data.x[voy];
+				ctx.fillRect(i*5, j*5, 5, 5);
+				voy++;
+			}
+		}
+
+		if (currentTime > lastSecond + 1000) {
+			fps = framesThisSecond;
+			framesThisSecond = 0;
+			lastSecond = currentTime;
+		}
+		framesThisSecond++;
+
+		// Dibujar FPS en el canvas
+
+		ctx.fillStyle = "black";
+		ctx.font = "24px Arial";
+		ctx.fillText(fps.toFixed(0)+" fps", 10, 80);
+
+		ctx.stroke();
+
+		// Hacer una nueva solicitud a '/coordinates' y luego volver a ejecutar 'draw' cuando los datos sean recibidos
+		fetch('/coordinates', { cache: "no-store" })
+		.then(response => response.json())
+		.then(responseData => {
+			data = responseData;
+			//requestAnimationFrame(draw);
+			draw();
+		}).catch(function() {
+			// In 5 seconds call draw() again
+			setTimeout(draw, 5000);
+		})
+	}
+
+	// Comenzar la primera solicitud de datos y ejecutar el primer 'draw' cuando los datos sean recibidos
+	fetch('/coordinates', { cache: "no-store" })
+		.then(response => response.json())
+		.then(responseData => {
+			data = responseData;
+			draw();
+		}).catch(function() {
+			// In 5 seconds call draw() again
+			setTimeout(draw, 5000);
+		});
+
+
+</script>
+</body>
+</html>
