@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/homebrew/include/**",
+				"/usr/local/include/**"
+            ],
+            // Resto de la configuración...
+        }
+    ],
+    // Resto del archivo...
+}

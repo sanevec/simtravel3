@@ -1,0 +1,15 @@
+<html>
+<body>
+<canvas id="myCanvas" width="500" height="500" style="border:1px solid #d3d3d3;">
+Your browser does not support the HTML canvas tag.
+</canvas>
+<script>
+var c = document.getElementById("myCanvas");
+var ctx = c.getContext("2d");
+fetch('/coordinates').then(response => response.json()).then(data => {
+    ctx.rect(data.x, data.y, data.width, data.height);
+    ctx.stroke();
+});
+</script>
+</body>
+</html>
