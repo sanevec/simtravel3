@@ -14,6 +14,8 @@ using namespace std;
 
 struct Point {
     Distance x, y;
+    Point() : x(0), y(0) {
+    }
     Point(int x, int y) : x(x), y(y) {
     }
     double distanceTo(const Point &other) const {
@@ -27,98 +29,177 @@ struct Cell {
 	Cell() {
 	}
 
-    enum { 
+	enum { 
 		EMPTY,
-    	STREET,
-        PARK 
+		STREET,
+		PARK 
 	} tipo;
 
-    Point p;
+	Point p;
 
-    void init(int x, int y) {
-		this->x = x;
-		this->y = y;
-        tipo = EMPTY;
-    }
+	void init(int x, int y) {
+		this->p.x = x;
+		this->p.y = y;
+		tipo = EMPTY;
+		distance = INFINITY;
+	}
+
+	// Position 
+	Distance distance,order,side;
+	Segment *segment;
+
+	// Link
+	Cell *fromCell, *toCell;
+
+	void link(Cell &other) {
+		// Si es de segmento distinto el link lo decide el orden.
+
+		if(this->order<other.order){
+			this->toCell=&other;
+			other.fromCell=this;
+		}else{
+			this->fromCell=&other;
+			other.toCell=this;
+		}
+	}
 };
 
 struct Segment{
-    Point p1,p2;
-    Segment(Distance x1,Distance y1,Distance x2,Distance y2){
-        p1=Point(x1,y1);
-        p2=Point(x2,y2);
-    }
+	Point p1,p2;
+	Segment(Distance x1,Distance y1,Distance x2,Distance y2){
+		p1=Point(x1,y1);
+		p2=Point(x2,y2);
+	}
 
-    double length() const {
-        return p1.distanceTo(p2);
-    }
+	double length() const {
+		return p1.distanceTo(p2);
+	}
 
-    double distanceTo(const Point &p) const {
-        double dx = p2.x - p1.x;
-        double dy = p2.y - p1.y;
-        if (dx == 0 && dy == 0)
-            return p1.distanceTo(p);
-        double t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / (dx * dx + dy * dy);
-        if (t < 0) return p1.distanceTo(p);
-        if (t > 1) return p2.distanceTo(p);
-        Point projection(p1.x + t * dx, p1.y + t * dy);
-        return projection.distanceTo(p);
-    }
+	void position(Cell &c) const {
+
+		if(c.tipo!=Cell::EMPTY) return;
+
+		auto p=c.p;
+		double dx = p2.x - p1.x;
+		double dy = p2.y - p1.y;
+		if (dx == 0 && dy == 0)
+			return;
+		double t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / (dx * dx + dy * dy);
+		if (t < 0) return;
+		if (t > 1) return;
+
+		Point projection(p1.x + t * dx, p1.y + t * dy);
+		/*
+		se puede determinar en qué lado de una línea se encuentra un punto utilizando la ecuación 
+		de la línea y comparándola con las coordenadas del punto. Si consideramos la ecuación de una 
+		línea en el plano en su forma general Ax + By + C = 0, un punto (x1, y1) está en:
+		Un lado de la línea si Ax1 + By1 + C > 0
+		El otro lado si Ax1 + By1 + C < 0
+		Exactamente en la línea si Ax1 + By1 + C = 0
+
+		Si tienes dos puntos, digamos p1(x1, y1) y p2(x2, y2), puedes encontrar la ecuación de la 
+		línea en formato Ax + By + C = 0 siguiendo estos pasos:
+		Calcula la pendiente (m) de la línea como: m = (y2 - y1) / (x2 - x1).
+		Luego, los coeficientes A, B y C se pueden obtener de la siguiente manera:
+		A es igual a -m.
+		B es igual a 1.
+		C es igual a m*x1 - y1.
+		*/
+
+		Distance distance=projection.distanceTo(p);
+
+		if(distance<c.distance){
+			Distance m=dy/dx;
+			Distance lado=-m*p.x+p.y+m*p1.x-p1.y;
+			c.distance=distance;
+			c.order=t;
+			c.side=lado;
+		}
+	}
 };
 
 struct Grid {
-    static constexpr int CELL_SIZE = 5;
-    int round = 0;
+	static constexpr int CELL_SIZE = 5;
+	int round = 0;
 
-    int gridWidth;
-    int gridHeight;
-    vector<vector<Cell>> grid;
+	int gridWidth;
+	int gridHeight;
+	vector<vector<Cell>> grid;
 
-    Grid(int width, int height)
-        : gridWidth(width), gridHeight(height),
-		  grid(width, vector<Cell>(height, Cell())) {
-        // Inicializa el grid con un patrón inicial
-        // srand(time(nullptr));
-        for (int x = 0; x < gridWidth; x++) {
-            for (int y = 0; y < gridHeight; y++) {
-                grid[x][y].init(x, y);
-            }
-        }
-    }
+	Grid(int width, int height)
+		: gridWidth(width), gridHeight(height),
+		grid(width, vector<Cell>(height, Cell())) {
+		// Inicializa el grid con un patrón inicial
+		// srand(time(nullptr));
+		for (int x = 0; x < gridWidth; x++) {
+			for (int y = 0; y < gridHeight; y++) {
+				grid[x][y].init(x, y);
+			}
+		}
+	}
 
-    Cell *getCell(int x, int y) {
-        int newX = x % gridWidth;
-        if (newX < 0) {
-            newX += gridWidth;
-        }
-        int newY = y % gridHeight;
-        if (newY < 0) {
-            newY += gridHeight;
-        }
-        return &grid[newX][newY];
-    }
+	Cell &getCell(int x, int y) {
+		int newX = x % gridWidth;
+		if (newX < 0) {
+			newX += gridWidth;
+		}
+		int newY = y % gridHeight;
+		if (newY < 0) {
+			newY += gridHeight;
+		}
+		return grid[newX][newY];
+	}
 
-    std::function<void(Grid &)> update;
+	std::function<void(Grid &)> update;
 
-    void lineTdd(){
-        auto s=Segment(50,5,50,95);
-        // Measuring the distance between segment to the center of the cell
-        for (int i = 0; i < gridWidth; i++) {
-            for (int j = 0; j < gridHeight; j++) {
-                Cell *cell = getCell(i, j);
-                if (cell->tipo == Cell::EMPTY) {
-                    // 
+	void lineTdd(){
+		auto s=Segment(50,5,50,95);
 
+		int borde=5;
+		// Recorre la zona del grid que contiene el segmento con un borde de seguridad
+		// Introduce todas las cell en un vector para luego ordenarlas por distance
+		vector<Cell*> cells;
 
-                    int d1 = (s.x1 - i) * (s.x1 - i) + (s.y1 - j) * (s.y1 - j);
-                    int d2 = (s.x2 - i) * (s.x2 - i) + (s.y2 - j) * (s.y2 - j);
-                    if (d1 < 10 || d2 < 10) {
-                        cell->tipo = Cell::STREET;
-                    }
-                }
-            }
-        }
-    }
+		for (int i = s.p1.x-borde; i <= s.p2.x+borde; i++) {
+			for (int j = s.p1.y-borde; j <= s.p2.y+borde; j++) {
+				Cell cell = getCell(i, j);
+				s.position(cell);
+				if(cell.tipo==Cell::EMPTY){
+					cells.push_back(&cell);
+				}
+			}
+		}
+
+		// Ordena las cell por distance
+		std::sort(cells.begin(), cells.end(), [](Cell *a, Cell *b) {
+			return a->distance < b->distance;
+		});
+
+		// Recorre dos veces las cell por distancia, uniendo los vecinos esgún orden y que sean del mismo lado si hay mas de un carril.
+		for (int i = 0; i < cells.size(); i++) {
+			Cell *cell = cells[i];
+			if (cell->tipo == Cell::EMPTY) {
+				// Asigna
+				cell->tipo = Cell::STREET;
+				
+				for (int j = 0; j < i; j++) {
+					Cell *otra = cells[j];
+					if (otra->tipo != Cell::EMPTY) {
+						// Link por orden
+
+					}
+				}
+				if (vecino != nullptr) {
+					cell->tipo = Cell::STREET;
+					vecino->tipo = Cell::STREET;
+				}
+			}else{
+				// Print on scrren not empty
+				cout << "x:" << cell->p.x << " y:" << cell->p.y << " tipo:" << cell->tipo << endl;
+
+			}
+		}
+	}
 
 };
 
