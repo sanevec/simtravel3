@@ -46,7 +46,6 @@ struct Cell {
 
 	// Position 
 	Distance distance,order,side;
-	Segment *segment;
 
 	// Link
 	Cell *fromCell, *toCell;
@@ -75,7 +74,7 @@ struct Segment{
 		return p1.distanceTo(p2);
 	}
 
-	void position(Cell &c) const {
+	void position(Cell &c,int segmento) const {
 
 		if(c.tipo!=Cell::EMPTY) return;
 
@@ -109,11 +108,16 @@ struct Segment{
 		Distance distance=projection.distanceTo(p);
 
 		if(distance<c.distance){
-			Distance m=dy/dx;
-			Distance lado=-m*p.x+p.y+m*p1.x-p1.y;
+			// Lado por producto vectorial, miramos el signo de la z
+			// A x B = (a2b3 - a3b2, a3b1 - a1b3, a1b2 - a2b1)
+			Distance lado=dx*(projection.y-p.y) - dy*(projection.x-p.x);
 			c.distance=distance;
-			c.order=t;
-			c.side=lado;
+			c.order=t+segmento;
+			if(lado>0){
+				c.side=1;
+			}else{
+				c.side=0;
+			}
 		}
 	}
 };
@@ -139,6 +143,7 @@ struct Grid {
 	}
 
 	Cell &getCell(int x, int y) {
+		// Lattice 
 		int newX = x % gridWidth;
 		if (newX < 0) {
 			newX += gridWidth;
@@ -154,6 +159,7 @@ struct Grid {
 
 	void lineTdd(){
 		auto s=Segment(50,5,50,95);
+		int ordenSegmento=0;
 
 		int borde=5;
 		// Recorre la zona del grid que contiene el segmento con un borde de seguridad
@@ -163,7 +169,8 @@ struct Grid {
 		for (int i = s.p1.x-borde; i <= s.p2.x+borde; i++) {
 			for (int j = s.p1.y-borde; j <= s.p2.y+borde; j++) {
 				Cell cell = getCell(i, j);
-				s.position(cell);
+				cout<<"x:"<<cell.p.x<<" y:"<<cell.p.y<<" tipo:"<<cell.tipo<<endl;
+				s.position(cell,ordenSegmento);
 				if(cell.tipo==Cell::EMPTY){
 					cells.push_back(&cell);
 				}
@@ -176,27 +183,40 @@ struct Grid {
 		});
 
 		// Recorre dos veces las cell por distancia, uniendo los vecinos esgún orden y que sean del mismo lado si hay mas de un carril.
+		bool pendiente;
 		for (int i = 0; i < cells.size(); i++) {
 			Cell *cell = cells[i];
+			cout<<"x:"<<cell->p.x<<" y:"<<cell->p.y<<" tipo:"<<cell->tipo<<endl;
 			if (cell->tipo == Cell::EMPTY) {
 				// Asigna
 				cell->tipo = Cell::STREET;
+
+				pendiente=i<1;
 				
 				for (int j = 0; j < i; j++) {
 					Cell *otra = cells[j];
-					if (otra->tipo != Cell::EMPTY) {
+					// ¿Son vecinas? Mide la distancia dx y dy
+					auto dx = abs(cell->p.x - otra->p.x);
+					auto dy = abs(cell->p.y - otra->p.y);
+					if (dx <= 1 && dy <= 1) {
 						// Link por orden
-
+						cell->link(*otra);
+					}
+					// Identifica si hay otra no linkada 
+					if(otra->fromCell!=nullptr && otra->toCell==nullptr){
+						pendiente=true;
 					}
 				}
-				if (vecino != nullptr) {
-					cell->tipo = Cell::STREET;
-					vecino->tipo = Cell::STREET;
+				if(!pendiente){
+					break;
 				}
 			}else{
 				// Print on scrren not empty
 				cout << "x:" << cell->p.x << " y:" << cell->p.y << " tipo:" << cell->tipo << endl;
 
+			}
+			if(!pendiente){
+				break;
 			}
 		}
 	}
@@ -239,10 +259,10 @@ struct Httpserver{
             int vez = 0;
             for (int i = 0; i < grid.gridWidth; i++) {
                 for (int j = 0; j < grid.gridHeight; j++) {
-                    Cell *cell = grid.getCell(i, j);
-                    if (cell->tipo == Cell::STREET) {
+                    Cell cell = grid.getCell(i, j);
+                    if (cell.tipo == Cell::STREET) {
                         x["x"][vez] = to_hex_string(0x0000FF);
-                    } else if (cell->tipo == Cell::PARK) {
+                    } else if (cell.tipo == Cell::PARK) {
                         x["x"][vez] = to_hex_string(0x00FF00);
                     } else {
                         x["x"][vez] = to_hex_string(0xFFFFFF);
@@ -262,9 +282,9 @@ struct Httpserver{
 };
 
 int main() {
-    std::srand(std::time(0));
+   std::srand(std::time(0));
 	Grid grid(100, 100);
-    grid.lineTdd()
+   grid.lineTdd();
     //grid.getCell(50, 5)->tipo = Cell::STREET;
 	Httpserver server(grid,18080);
 	server.run();
