@@ -23,12 +23,14 @@ struct Point {
         double dy = y - other.y;
         return std::sqrt(dx*dx + dy*dy);
     }
+	 double maxSide(const Point &other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        return max(abs(dx),abs(dy));
+    }
 };
 
 struct Cell {
-	Cell() {
-	}
-
 	enum { 
 		EMPTY,
 		STREET,
@@ -37,7 +39,7 @@ struct Cell {
 
 	Point p;
 
-	void init(int x, int y) {
+	Cell(int x, int y) {
 		this->p.x = x;
 		this->p.y = y;
 		tipo = EMPTY;
@@ -50,15 +52,15 @@ struct Cell {
 	// Link
 	Cell *fromCell, *toCell;
 
-	void link(Cell &other) {
+	void link(Cell* other) {
 		// Si es de segmento distinto el link lo decide el orden.
 
-		if(this->order<other.order){
-			this->toCell=&other;
-			other.fromCell=this;
+		if(this->order<other->order){
+			this->toCell=other;
+			other->fromCell=this;
 		}else{
-			this->fromCell=&other;
-			other.toCell=this;
+			this->fromCell=other;
+			other->toCell=this;
 		}
 	}
 };
@@ -128,21 +130,21 @@ struct Grid {
 
 	int gridWidth;
 	int gridHeight;
-	vector<vector<Cell>> grid;
+	vector<vector<Cell*>> grid;
 
 	Grid(int width, int height)
-		: gridWidth(width), gridHeight(height),
-		grid(width, vector<Cell>(height, Cell())) {
+		: gridWidth(width), gridHeight(height), grid(width, vector<Cell*>(height)) {
 		// Inicializa el grid con un patrón inicial
 		// srand(time(nullptr));
 		for (int x = 0; x < gridWidth; x++) {
+
 			for (int y = 0; y < gridHeight; y++) {
-				grid[x][y].init(x, y);
+				grid[x][y]=new Cell(x,y);
 			}
 		}
 	}
 
-	Cell &getCell(int x, int y) {
+	Cell* getCell(int x, int y) {
 		// Lattice 
 		int newX = x % gridWidth;
 		if (newX < 0) {
@@ -158,64 +160,71 @@ struct Grid {
 	std::function<void(Grid &)> update;
 
 	void lineTdd(){
-		auto s=Segment(50,5,50,95);
+		auto s=Segment(2,2,5,5);
 		int ordenSegmento=0;
 
-		int borde=5;
+		int borde=0;
 		// Recorre la zona del grid que contiene el segmento con un borde de seguridad
 		// Introduce todas las cell en un vector para luego ordenarlas por distance
 		vector<Cell*> cells;
 
 		for (int i = s.p1.x-borde; i <= s.p2.x+borde; i++) {
 			for (int j = s.p1.y-borde; j <= s.p2.y+borde; j++) {
-				Cell cell = getCell(i, j);
-				cout<<"x:"<<cell.p.x<<" y:"<<cell.p.y<<" tipo:"<<cell.tipo<<endl;
+				Cell& cell = *getCell(i, j);
+				//cout<<"x:"<<cell.p.x<<" y:"<<cell.p.y<<" tipo:"<<cell.tipo<<endl;
+				if(cell.p.x!=i || cell.p.y!=j){
+					cout<<"Error en la cell"<<endl;
+				}
 				s.position(cell,ordenSegmento);
 				if(cell.tipo==Cell::EMPTY){
 					cells.push_back(&cell);
+					cout<<"x:"<<cell.p.x<<" y:"<<cell.p.y<<" tipo:"<<cell.tipo<<endl;
 				}
 			}
 		}
+
 
 		// Ordena las cell por distance
 		std::sort(cells.begin(), cells.end(), [](Cell *a, Cell *b) {
 			return a->distance < b->distance;
 		});
+		
 
 		// Recorre dos veces las cell por distancia, uniendo los vecinos esgún orden y que sean del mismo lado si hay mas de un carril.
-		bool pendiente;
+		bool salir=false;
 		for (int i = 0; i < cells.size(); i++) {
-			Cell *cell = cells[i];
-			cout<<"x:"<<cell->p.x<<" y:"<<cell->p.y<<" tipo:"<<cell->tipo<<endl;
-			if (cell->tipo == Cell::EMPTY) {
+			Cell & cell = *cells[i];
+			cout<<"x:"<<cell.p.x<<" y:"<<cell.p.y<<" distance:"<<cell.distance<<endl;
+			if (cell.tipo == Cell::EMPTY) {
 				// Asigna
-				cell->tipo = Cell::STREET;
+				cell.tipo = Cell::STREET;
 
-				pendiente=i<1;
+				int anclado=0;
 				
 				for (int j = 0; j < i; j++) {
-					Cell *otra = cells[j];
+					Cell * otra = cells[j];
 					// ¿Son vecinas? Mide la distancia dx y dy
-					auto dx = abs(cell->p.x - otra->p.x);
-					auto dy = abs(cell->p.y - otra->p.y);
+					auto dx = abs(cell.p.x - otra->p.x);
+					auto dy = abs(cell.p.y - otra->p.y);
 					if (dx <= 1 && dy <= 1) {
 						// Link por orden
-						cell->link(*otra);
+						cell.link(otra);
 					}
 					// Identifica si hay otra no linkada 
-					if(otra->fromCell!=nullptr && otra->toCell==nullptr){
-						pendiente=true;
+					if(otra->fromCell!=nullptr || otra->toCell!=nullptr){
+						anclado++;
 					}
 				}
-				if(!pendiente){
+				cout << "anclado:" << anclado << endl;
+				if(anclado>=s.p1.maxSide(s.p2)){
+					salir=true;
 					break;
 				}
 			}else{
 				// Print on scrren not empty
-				cout << "x:" << cell->p.x << " y:" << cell->p.y << " tipo:" << cell->tipo << endl;
-
+				cout << "x:" << cell.p.x << " y:" << cell.p.y << " tipo:" << cell.tipo << endl;
 			}
-			if(!pendiente){
+			if(salir){
 				break;
 			}
 		}
@@ -259,7 +268,7 @@ struct Httpserver{
             int vez = 0;
             for (int i = 0; i < grid.gridWidth; i++) {
                 for (int j = 0; j < grid.gridHeight; j++) {
-                    Cell cell = grid.getCell(i, j);
+                    Cell &cell = *grid.getCell(i, j);
                     if (cell.tipo == Cell::STREET) {
                         x["x"][vez] = to_hex_string(0x0000FF);
                     } else if (cell.tipo == Cell::PARK) {
@@ -283,7 +292,7 @@ struct Httpserver{
 
 int main() {
    std::srand(std::time(0));
-	Grid grid(100, 100);
+	Grid grid(10, 10);
    grid.lineTdd();
     //grid.getCell(50, 5)->tipo = Cell::STREET;
 	Httpserver server(grid,18080);
